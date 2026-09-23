@@ -1,8 +1,18 @@
-// Rotation lente du ciel — composant A-Frame personnalisé (axe Y)
 AFRAME.registerComponent('slow-rotate', {
-  schema: { speed: { type: 'number', default: 0.7 } }, // degrés / seconde
+  schema: {
+    speed: {
+      type: 'number',
+      default: 0.7
+    }
+  },
+
   tick: function (time, timeDelta) {
-    this.el.object3D.rotation.y += THREE.MathUtils.degToRad(this.data.speed * (timeDelta / 1000));
+    if (!this.el.object3D) return;
+
+    this.el.object3D.rotation.y +=
+      THREE.MathUtils.degToRad(
+        this.data.speed * (timeDelta / 1000)
+      );
   }
 });
 
@@ -14,41 +24,66 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.querySelector('#promptForm');
   const input = document.querySelector('#promptInput');
 
-  function setStatus(msg) {
-    status3d.setAttribute('value', msg);
-    status2d.textContent = msg;
+  function setStatus(message) {
+    if (status3d) status3d.setAttribute('value', message);
+    if (status2d) status2d.textContent = message;
   }
 
   function generateSky(prompt) {
-    setStatus('Génération spatiale en cours... (peut prendre 15-40s en 4K)');
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=4096&height=2048&nologo=true`;
+    setStatus('Génération du décor...');
 
+    /*
+      2048×1024 = beaucoup plus raisonnable pour commencer sur Quest 3.
+      Si tout fonctionne, tu pourras tester 4096×2048 ensuite.
+    */
+    const url =
+      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+      `?width=2048&height=1024&nologo=true`;
+
+    // Chargement préalable pour détecter une erreur réseau/CORS.
     const img = new Image();
-    img.crossOrigin = 'anonymous'; // DOIT être posé avant .src : évite qu'une texture
-                                    // "cross-origin" soit rejetée par le rendu WebGL
+    img.crossOrigin = 'anonymous';
+
     img.onload = () => {
-      sky.setAttribute('material', 'src', img);
-      setStatus('Décor généré : ' + prompt);
+      sky.setAttribute('src', url);
+      setStatus('Décor généré.');
     };
+
     img.onerror = () => {
-      // Si ça échoue systématiquement : teste d'abord sur Chrome desktop (console
-      // visible) pour voir si Pollinations bloque l'origine ou si c'est le réseau.
-      setStatus('Échec de génération. Réessaie avec une autre description.');
+      setStatus('Erreur image. Vérifie le réseau ou réessaie.');
+      console.error('Impossible de charger l’image :', url);
     };
+
     img.src = url;
   }
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
     const prompt = input.value.trim();
     if (!prompt) return;
+
     generateSky(prompt);
-    input.blur(); // referme le clavier virtuel
+
     input.value = '';
+    input.blur();
   });
 
-  // Génération initiale au chargement de la scène
   scene.addEventListener('loaded', () => {
-    generateSky('vaste nébuleuse spatiale colorée, étoiles, vue à 360 degrés');
+    setStatus('VR prête. Génération du décor...');
+
+    generateSky(
+      'vaste nébuleuse spatiale violette et bleue, étoiles brillantes, ' +
+      'trou noir au loin, environnement panoramique 360 degrés, ' +
+      'sans texte, sans interface'
+    );
+  });
+
+  scene.addEventListener('enter-vr', () => {
+    setStatus('Mode VR activé.');
+  });
+
+  scene.addEventListener('exit-vr', () => {
+    setStatus('Mode VR quitté.');
   });
 });
